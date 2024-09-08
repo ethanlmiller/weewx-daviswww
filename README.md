@@ -12,8 +12,13 @@ Features include:
 
 ## Deploying
 
-Place `daviswww.py` into the `bin/user` directory in your `weewx` data directory, which is usually
-the one containing `weewx.conf`.
+Place `daviswww.py` into the `bin/user` directory in your `weewx` data directory,
+which is usually the one containing `weewx.conf`.
+
+The driver also requires the Python3 `requests` package.
+This can be installed using `pip3 install requests` running in the environment
+in which `weewx` runs. Since it only uses very basic features from `requests`,
+and it’s a very stable package, any version should work.
 
 ## Configuration section
 
