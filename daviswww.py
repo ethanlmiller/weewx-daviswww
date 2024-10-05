@@ -241,7 +241,7 @@ class DavisWWW(weewx.drivers.AbstractDevice):
             self.rain_scale_type = 1
         self.rain_scale_factor = self.get_rain_scale_factor (self.rain_scale_type)
         self.all_txids = str(stn_dict.get ('transmitters_ordered',
-                                           '12345678BIA'))
+                                           '12345678AIB'))
         self.txids = dict()
         self.default_weather_txid = str(stn_dict.get ('weather_transmitter_id', 1))
         self.default_soil_txid = str(stn_dict.get ('soil_transmitter_id', 2))
