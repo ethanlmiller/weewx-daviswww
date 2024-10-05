@@ -110,8 +110,8 @@ class DavisWWW(weewx.drivers.AbstractDevice):
     # For the driver to work, the Davis device(s) and the computer running Weewx should be on the same network.
     # For details on programmatically finding Davis devices on the local network,
     # see https://weatherlink.github.io/weatherlink-live-local-api/discovery.html
-    weather_host = 10.0.0.1
-    aqi_host = 10.0.0.2
+    weather_host = 10.0.0.100
+    aqi_host = 10.0.0.101
 
     # The driver to use:
     driver = user.daviswww
@@ -158,8 +158,15 @@ class DavisWWW(weewx.drivers.AbstractDevice):
     # Mappings are for temp (includes humidity), wind, rain, uv, solar, and battery.
     # Mappings are also for soil temp (soil1, soil2, soil3, soil4) and soil moisture (moist1, moist2, moist3, moist4)
     # If no transmitter is specified for a measurement (either globally as above, or locally in mappings),
-    # the lowest-number transmitter with that measurement is used.
-    mappings = temp:1, wind:1, soil1:2, soil2:2 moist1:2
+    # sensors are sampled in the order from transmitters_ordered
+    mappings = outTemp:A, windSpeed:5, soil1:2, soil2:2 moist1:2
+
+    # Default transmitter ordering (12345678AIB) is usually fine,
+    # so there's no need to specify unless you want a different default ordering.
+    # A = air quality
+    # B = barometer (measured from indoor, typically)
+    # I = indoor unit
+    transmitters_ordered = A12345678IB
 
 """
 
@@ -233,11 +240,11 @@ class DavisWWW(weewx.drivers.AbstractDevice):
             log.error("Invalid rain_collector {0} - defaulting to 1.".format (self.rain_scale_type))
             self.rain_scale_type = 1
         self.rain_scale_factor = self.get_rain_scale_factor (self.rain_scale_type)
-        self.all_txids = list (range(1,9))
-        self.all_txids += ['B', 'I', 'A']
+        self.all_txids = str(stn_dict.get ('transmitters_ordered',
+                                           '12345678BIA'))
         self.txids = dict()
-        self.default_weather_txid = int(stn_dict.get ('weather_transmitter_id', 1))
-        self.default_soil_txid = int (stn_dict.get ('soil_transmitter_id', 2))
+        self.default_weather_txid = str(stn_dict.get ('weather_transmitter_id', 1))
+        self.default_soil_txid = str(stn_dict.get ('soil_transmitter_id', 2))
 
         self.mappings = stn_dict.get ('mappings')
         self.init_txids (self.mappings)
@@ -252,24 +259,24 @@ class DavisWWW(weewx.drivers.AbstractDevice):
             self.txids[c.wllname] = default_txids[c.txid_group]
         # Set up different txids for individual mappings
         if mappings:
-            for m in mappings.lower().split ():
+            for m in mappings.split ():
                 try:
                     (metric_type, txid) = m.split (':')
-                    txid = int (txid)
-                    for c in self.sensor_info.values():
-                        if c.metric_type == metric_type:
-                            self.txids[c.wllname] = txid
+                    if metric_type in self.sensor_info:
+                        self.txids[self.sensor_info[metric_type].wllname] = str(txid)
                 except:
-                    continue
+                    pass
 
     def get_rain_scale_factor (self, collector_type):
         return rain_collector_scale.get (collector_type, None)
 
     def get_condition (self, data, condition):
-        if (self.txids[condition], condition) in data.keys ():
+        # If we specified a sensor and it's available, use it
+        if (self.txids[condition], condition) in data:
             return data[self.txids[condition],condition]
+        # Otherwise, pick the first value we find
         for tx in self.all_txids:
-            if (tx,condition) in data.keys():
+            if (tx,condition) in data:
                 return data[tx,condition]
         return None
 
@@ -279,7 +286,7 @@ class DavisWWW(weewx.drivers.AbstractDevice):
         for c in json_data['conditions']:
             record_type = c['data_structure_type']
             if record_type in (1,2):
-                txid = c['txid']
+                txid = str(c['txid'])
             elif record_type == 3:
                 txid = 'B'
             elif record_type == 4:
@@ -342,7 +349,9 @@ if __name__ == '__main__':
     weeutil.logger.setup ("DavisWWW")
     weewx.debug = 1
     driver = DavisWWW(weather_host="192.168.22.150", aqi_host="192.168.22.151",
-                      weather_transmitter_id=5, poll_interval=5)
+                      weather_transmitter_id=5,
+                      mappings="outTemp:A",
+                      poll_interval=5)
     pprint (vars(driver))
     for packet in driver.genLoopPackets():
         print(weeutil.weeutil.timestamp_to_string(packet['dateTime']), packet)
